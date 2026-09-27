@@ -324,7 +324,7 @@ pub fn create_message(msg_type: Type, factory: &VariableHeaderFactory) -> Messag
     }
 }
 
-pub fn receive_message(factory: &VariableHeaderFactory) {
+pub fn parse_message(data: &[u8], factory: &VariableHeaderFactory) -> Message {
     // tcp receive
     // decode the payload of tcp
     // do shit with the payload starting
@@ -351,5 +351,11 @@ pub fn receive_message(factory: &VariableHeaderFactory) {
         Type::PINGRESP => {}
         Type::PUBLISH(topic, id, dup, qos, retain, payload) => {}
         _ => {}
+    }
+
+    Message {
+        fixed_header: 0x0,
+        var_header: Vec::new(),
+        payload: Vec::new(),
     }
 }

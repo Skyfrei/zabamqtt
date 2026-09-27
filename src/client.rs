@@ -1,7 +1,7 @@
-use crate::format::{Message, Type, VariableHeaderFactory, create_message, receive_message};
+use crate::format::{Message, Type, VariableHeaderFactory, create_message, parse_message};
 use crate::net::connect;
 use std::collections::HashSet;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::net::TcpStream;
 
 pub struct Zabaqtt {
@@ -26,7 +26,7 @@ impl Zabaqtt {
         pw: &str,
         will: u8,
     ) -> Result<TcpStream, std::io::Error> {
-        let mut stream = connect(ip)?;
+        let stream = connect(ip)?;
         let msg = self.create_msg(Type::CONNECT("", user, pw, will));
         self.send(msg);
         self.client = Some(stream.try_clone()?);
@@ -37,8 +37,16 @@ impl Zabaqtt {
         create_message(msg_type, &self.header_factory)
     }
 
-    pub fn receive(&self) {
-        receive_message(&self.header_factory);
+    pub fn receive(&mut self) -> Message {
+        let mut buffer = [0u8; 128];
+
+        let stream = self.client.as_mut().expect("Client stream not initialized");
+
+        let bytes_read = stream
+            .read(&mut buffer)
+            .expect("Failed to read from stream");
+
+        parse_message(&buffer[..bytes_read], &self.header_factory)
     }
 
     pub fn send(&mut self, msg: Message) {
