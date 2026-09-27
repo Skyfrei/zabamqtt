@@ -23,7 +23,7 @@ pub enum RETAIN {
 
 pub enum Type<'a> {
     Reserved,
-    CONNECT(&'a str, Option<&'a str>, Option<&'a str>, Option<u8>),
+    CONNECT(&'a str, &'a str, &'a str, u8),
     CONNACK,
     PUBLISH(&'a str, u16, DUP, QoS, RETAIN, Vec<u8>),
     PUBACK(u16),
@@ -69,31 +69,22 @@ impl VariableHeaderFactory {
         header
     }
 
-    fn get_connect_header(
-        &self,
-        client_id: &str,
-        username: Option<&str>,
-        pw: Option<&str>,
-        will: Option<u8>,
-    ) -> Vec<u8> {
+    fn get_connect_header(&self, client_id: &str, username: &str, pw: &str, will: u8) -> Vec<u8> {
         let mut var_flags: u8 = 0xFE;
 
-        if username.is_none() {
+        if username == "" {
             var_flags &= 0x7F; // Bit 7: User Name Flag off
         }
-        if pw.is_none() {
+        if pw == "" {
             var_flags &= 0xBF; // Bit 6: Password Flag off
         }
-        match will {
-            Some(x) => {
-                var_flags &= 0xC3;
-                if (x & 0x04) > 0 {
-                    var_flags |= (x & 0x38) | 0x04;
-                } else {
-                    var_flags &= 0xC3;
-                }
-            }
-            None => {
+        if will == 0 {
+            var_flags &= 0xC3;
+        } else {
+            var_flags &= 0xC3;
+            if (will & 0x04) > 0 {
+                var_flags |= (will & 0x38) | 0x04;
+            } else {
                 var_flags &= 0xC3;
             }
         }
@@ -150,9 +141,9 @@ fn str_to_tuple(s: &str) -> ([u8; 2], &[u8]) {
 
 fn create_connect<'a>(
     client_id: &'a str,
-    username: Option<&'a str>,
-    pw: Option<&'a str>,
-    will: Option<u8>,
+    username: &'a str,
+    pw: &'a str,
+    will: u8,
     factory: &VariableHeaderFactory,
 ) -> Message {
     if client_id.len() > 23 || client_id.len() < 1 {
@@ -358,6 +349,7 @@ pub fn receive_message(factory: &VariableHeaderFactory) {
         Type::SUBACK(id) => {}
         Type::UNSUBACK(id) => {}
         Type::PINGRESP => {}
+        Type::PUBLISH(topic, id, dup, qos, retain, payload) => {}
         _ => {}
     }
 }
