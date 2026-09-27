@@ -1,3 +1,4 @@
+mod client;
 mod format;
 
 fn main() {
