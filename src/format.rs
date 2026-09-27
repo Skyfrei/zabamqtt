@@ -32,7 +32,7 @@ pub enum Type<'a> {
     PUBCOMP(u16),
     SUBSCRIBE(&'a [(&'a str, QoS)], u16),
     SUBACK(u16),
-    UNSUBSCRIBE(u16),
+    UNSUBSCRIBE(&'a [&'a str], u16),
     UNSUBACK(u16),
     PINGREQ,
     PINGRESP,
@@ -40,17 +40,12 @@ pub enum Type<'a> {
     // other shit
 }
 
-fn str_to_tuple(s: &str) -> ([u8; 2], &[u8]) {
-    let len = s.len() as u16;
-    (len.to_be_bytes(), s.as_bytes())
-}
-
 pub struct VariableHeaderFactory {}
 
 impl VariableHeaderFactory {
-    pub fn get_header(&self, msgType: Type) -> Vec<u8> {
+    pub fn get_header(&self, msg_type: Type) -> Vec<u8> {
         let mut header: Vec<u8> = Vec::new();
-        match msgType {
+        match msg_type {
             Type::Reserved => {}
             Type::CONNECT(client_id, username, pw, will) => {
                 header = self.get_connect_header(client_id, username, pw, will);
@@ -63,7 +58,7 @@ impl VariableHeaderFactory {
             | Type::PUBREL(id)
             | Type::PUBCOMP(id)
             | Type::SUBACK(id)
-            | Type::UNSUBSCRIBE(id)
+            | Type::UNSUBSCRIBE(_, id)
             | Type::UNSUBACK(id)
             | Type::SUBSCRIBE(_, id) => {
                 header.extend_from_slice(&id.to_be_bytes());
@@ -76,7 +71,7 @@ impl VariableHeaderFactory {
 
     fn get_connect_header(
         &self,
-        clientId: &str,
+        client_id: &str,
         username: Option<&str>,
         pw: Option<&str>,
         will: Option<u8>,
@@ -148,23 +143,28 @@ impl Message {
     pub fn write_to<W: Write>(&self, writer: &mut W) {}
 }
 
+fn str_to_tuple(s: &str) -> ([u8; 2], &[u8]) {
+    let len = s.len() as u16;
+    (len.to_be_bytes(), s.as_bytes())
+}
+
 fn create_connect<'a>(
-    clientId: &'a str,
+    client_id: &'a str,
     username: Option<&'a str>,
     pw: Option<&'a str>,
     will: Option<u8>,
     factory: &VariableHeaderFactory,
 ) -> Message {
-    if clientId.len() > 23 || clientId.len() < 1 {
+    if client_id.len() > 23 || client_id.len() < 1 {
         panic!("Wrong length of client id");
     }
 
     let header: u16 = 0x10;
-    let var_header = factory.get_header(Type::CONNECT(clientId, username, pw, will));
+    let var_header = factory.get_header(Type::CONNECT(client_id, username, pw, will));
 
     let mut payload: Vec<u8> = Vec::new();
 
-    let mut temp = str_to_tuple(clientId);
+    let mut temp = str_to_tuple(client_id);
 
     payload.extend_from_slice(&temp.0);
     payload.extend_from_slice(temp.1);
@@ -197,7 +197,7 @@ fn create_subscribe(subs: &[(&str, QoS)], id: u16, factory: &VariableHeaderFacto
 
     let header: u16 = 0x82;
 
-    let varHeader = factory.get_header(Type::SUBSCRIBE(subs, id));
+    let var_header = factory.get_header(Type::SUBSCRIBE(subs, id));
 
     let payload: Vec<u8> = {
         let mut bytes: Vec<u8> = Vec::new();
@@ -212,8 +212,30 @@ fn create_subscribe(subs: &[(&str, QoS)], id: u16, factory: &VariableHeaderFacto
 
     Message {
         fixed_header: header,
-        var_header: varHeader,
+        var_header: var_header,
         payload: payload,
+    }
+}
+
+fn create_unsubscribe(topics: &[&str], id: u16, factory: &VariableHeaderFactory) -> Message {
+    let header: u16 = 0x82;
+
+    let var_header = factory.get_header(Type::UNSUBSCRIBE(topics, id));
+
+    let payload: Vec<u8> = {
+        let mut bytes: Vec<u8> = Vec::new();
+        for topic in topics {
+            let s = str_to_tuple(topic);
+            bytes.extend_from_slice(&s.0);
+            bytes.extend_from_slice(s.1);
+        }
+        bytes
+    };
+
+    Message {
+        fixed_header: header,
+        var_header,
+        payload,
     }
 }
 
@@ -250,7 +272,6 @@ fn create_publish(
     }
 }
 
-fn handle_publish() {}
 fn create_puback(identifier: u16) -> Message {
     Message {
         fixed_header: 0x4002,
@@ -280,22 +301,63 @@ fn create_pubcomp(identifier: u16) -> Message {
     }
 }
 
-pub fn create_message(msgType: Type, factory: &VariableHeaderFactory) -> Message {
-    match msgType {
-        Type::CONNECT(client_id, username, pw, will) => {
-            return create_connect(client_id, username, pw, will, &factory);
-        }
-        Type::SUBSCRIBE(topics, id) => return create_subscribe(topics, id, &factory),
-        Type::PUBLISH(topic, id, dup, qos, retain, payload) => {
-            return create_publish(topic, id, dup, qos, retain, &factory, payload);
-        }
-        _ => {}
-    }
+fn create_disconnect() -> Message {
     Message {
-        fixed_header: 0,
+        fixed_header: 0xE000,
         var_header: Vec::new(),
         payload: Vec::new(),
     }
 }
 
-pub fn receive_message(factory: &VariableHeaderFactory) {}
+fn create_pingreq() -> Message {
+    Message {
+        fixed_header: 0xC000,
+        var_header: Vec::new(),
+        payload: Vec::new(),
+    }
+}
+
+pub fn create_message(msg_type: Type, factory: &VariableHeaderFactory) -> Message {
+    match msg_type {
+        Type::CONNECT(client_id, username, pw, will) => {
+            return create_connect(client_id, username, pw, will, &factory);
+        }
+        Type::SUBSCRIBE(topics, id) => return create_subscribe(topics, id, &factory),
+        Type::UNSUBSCRIBE(topics, id) => return create_unsubscribe(topics, id, &factory),
+        Type::PUBLISH(topic, id, dup, qos, retain, payload) => {
+            return create_publish(topic, id, dup, qos, retain, &factory, payload);
+        }
+        Type::DISCONNECT => return create_disconnect(),
+        Type::PINGREQ => return create_pingreq(),
+        _ => create_pingreq(),
+    }
+}
+
+pub fn receive_message(factory: &VariableHeaderFactory) {
+    // tcp receive
+    // decode the payload of tcp
+    // do shit with the payload starting
+    // by parsing the msgtype
+    //
+    //
+    let msg_type: Type = Type::PINGREQ;
+    match msg_type {
+        Type::CONNACK => {}
+        Type::PUBACK(id) => {
+            create_puback(id);
+        }
+        Type::PUBREC(id) => {
+            create_pubrec(id);
+        }
+        Type::PUBREL(id) => {
+            create_pubrel(id);
+        }
+        Type::PUBCOMP(id) => {
+            create_pubcomp(id);
+        }
+        Type::SUBACK(id) => {}
+        Type::UNSUBACK(id) => {}
+        Type::PINGRESP => {}
+        _ => {}
+    }
+}
