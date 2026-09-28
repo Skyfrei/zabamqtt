@@ -115,7 +115,7 @@ impl VariableHeaderFactory {
 }
 
 pub struct Message {
-    fixed_header: u16, // 2nd byte standing for length of payload is not calculated properly yet
+    fixed_header: u64, // 2nd byte standing for length of payload is not calculated properly yet
     var_header: Vec<u8>,
     payload: Vec<u8>,
 }
@@ -123,6 +123,7 @@ pub struct Message {
 impl Message {
     pub fn to_bytes(&self) -> Vec<u8> {
         let payload_length = self.payload.len();
+        // payload length gotta decode the fixed header
 
         let mut bytes = Vec::with_capacity(2 + self.var_header.len() + payload_length);
         bytes.extend_from_slice(&self.fixed_header.to_be_bytes());
@@ -132,6 +133,36 @@ impl Message {
     }
 
     pub fn write_to<W: Write>(&self, writer: &mut W) {}
+}
+
+fn encode_length(mut x: usize) -> ([u8; 4], usize) {
+    let mut bytes = [0u8; 4];
+    let mut count = 0;
+
+    loop {
+        let mut encoded_byte = (x % 128) as u8;
+        x /= 128;
+
+        if x > 0 {
+            encoded_byte |= 128;
+        }
+        bytes[count] = encoded_byte;
+        count += 1;
+        if x == 0 {
+            break;
+        }
+    }
+
+    (bytes, count)
+}
+
+fn decode_length(data: &[u8; 4]) -> u32 {
+    let mut multiplier = 1;
+    let mut value = 0;
+
+    loop {}
+
+    value
 }
 
 fn str_to_tuple(s: &str) -> ([u8; 2], &[u8]) {
@@ -325,7 +356,6 @@ pub fn create_message(msg_type: Type, factory: &VariableHeaderFactory) -> Messag
 }
 
 pub fn parse_message(data: &[u8], factory: &VariableHeaderFactory) -> Message {
-    // tcp receive
     // decode the payload of tcp
     // do shit with the payload starting
     // by parsing the msgtype
