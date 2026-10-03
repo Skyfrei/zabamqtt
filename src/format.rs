@@ -22,7 +22,7 @@ pub enum RETAIN {
 }
 
 pub enum Type<'a> {
-    CONNECT(&'a str, &'a str, &'a str, u8, u16),
+    CONNECT(&'a str, &'a str, &'a str, u8, u16, bool),
     CONNACK,
     PUBLISH(&'a str, u16, DUP, QoS, RETAIN, Vec<u8>),
     PUBACK(u16),
@@ -62,8 +62,15 @@ impl VariableHeaderFactory {
     pub fn get_header(&self, msg_type: Type) -> Vec<u8> {
         let mut header: Vec<u8> = Vec::new();
         match msg_type {
-            Type::CONNECT(client_id, username, pw, will, alive_timer) => {
-                header = self.get_connect_header(client_id, username, pw, will, alive_timer);
+            Type::CONNECT(client_id, username, pw, will, alive_timer, clean_session) => {
+                header = self.get_connect_header(
+                    client_id,
+                    username,
+                    pw,
+                    will,
+                    alive_timer,
+                    clean_session,
+                );
             }
             Type::PUBLISH(topic, id, _, qos, _, _) => {
                 header = self.get_publish_header(topic, id, qos);
@@ -91,8 +98,13 @@ impl VariableHeaderFactory {
         pw: &str,
         will: u8,
         alive_timer: u16,
+        clean_session: bool,
     ) -> Vec<u8> {
         let mut var_flags: u8 = 0xFE;
+
+        if !clean_session {
+            var_flags &= !0x02; // Clear bit 1 -> CleanSession = 0
+        }
 
         if username == "" {
             var_flags &= 0x7F;
@@ -200,7 +212,7 @@ fn encode_length(mut x: usize) -> ([u8; 4], usize) {
     (bytes, count)
 }
 
-fn decode_length(data: &[u8]) -> u32 {
+pub fn decode_length(data: &[u8]) -> u32 {
     let mut multiplier: u32 = 1;
     let mut value = 0;
     let mut index = 0;
@@ -323,13 +335,21 @@ fn create_connect<'a>(
     pw: &'a str,
     will: u8,
     keep_alive: u16,
+    clean_session: bool,
     factory: &VariableHeaderFactory,
 ) -> Message {
     if client_id.len() > 23 || client_id.is_empty() {
         panic!("Wrong length of client id");
     }
 
-    let var_header = factory.get_header(Type::CONNECT(client_id, username, pw, will, keep_alive));
+    let var_header = factory.get_header(Type::CONNECT(
+        client_id,
+        username,
+        pw,
+        will,
+        keep_alive,
+        clean_session,
+    ));
     let mut payload: Vec<u8> = Vec::new();
 
     let mut temp = str_to_tuple(client_id);
@@ -508,8 +528,16 @@ fn create_pingreq() -> Message {
 
 pub fn create_message(msg_type: Type, factory: &VariableHeaderFactory) -> Message {
     match msg_type {
-        Type::CONNECT(client_id, username, pw, will, keep_alive) => {
-            return create_connect(client_id, username, pw, will, keep_alive, &factory);
+        Type::CONNECT(client_id, username, pw, will, keep_alive, clean_session) => {
+            return create_connect(
+                client_id,
+                username,
+                pw,
+                will,
+                keep_alive,
+                clean_session,
+                &factory,
+            );
         }
         Type::SUBSCRIBE(topics, id) => return create_subscribe(topics, id, &factory),
         Type::UNSUBSCRIBE(topics, id) => return create_unsubscribe(topics, id, &factory),
@@ -518,6 +546,7 @@ pub fn create_message(msg_type: Type, factory: &VariableHeaderFactory) -> Messag
         }
         Type::DISCONNECT => return create_disconnect(),
         Type::PINGREQ => return create_pingreq(),
+        Type::PUBACK(id) => return create_puback(id),
         _ => create_pingreq(),
     }
 }

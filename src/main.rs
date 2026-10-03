@@ -6,7 +6,7 @@ mod net;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = client::Zabamqtt::new();
 
-    let _ = client.connect_client("127.0.0.1:1883", "Sky-gaming", "", "", 0, 10)?;
+    let _ = client.connect_client("127.0.0.1:1883", "Sky-gaming", "", "", 0, 10, true)?;
     println!("Connected to Mosquitto!");
 
     let sub = client.create_msg(format::Type::SUBSCRIBE(
