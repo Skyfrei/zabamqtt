@@ -1,6 +1,6 @@
 ## Zabamqtt
 
-Zabaqmtt is a full implementation of 
+Zabaqmtt is a full client implementation of 
 the mqtt 3.1 protocol which uses currently
 only the TCP stream protocol but in the 
 future will also include messaging
