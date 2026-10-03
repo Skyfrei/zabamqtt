@@ -4,13 +4,11 @@ use std::time::Duration;
 mod net;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = client::Zabaqtt::new();
+    let mut client = client::Zabamqtt::new();
 
-    // 1. Connect
     let _ = client.connect_client("127.0.0.1:1883", "Sky-gaming", "", "", 0, 10)?;
     println!("Connected to Mosquitto!");
 
-    // 2. Subscribe to test topic
     let sub = client.create_msg(format::Type::SUBSCRIBE(
         &[("test/research", format::QoS::AtMostOnce)],
         1,
@@ -18,7 +16,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     client.send(sub)?;
     println!("Subscribed to test/research");
 
-    // 3. Receive loop
     loop {
         if client.should_ping() {
             let ping = client.create_msg(format::Type::PINGREQ);
@@ -40,9 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _ => (),
                 }
             }
-            Ok(None) => {
-                // No packet arrived on this cycle (timeout / no data yet)
-            }
+            Ok(None) => {}
             Err(e) => {
                 eprintln!("Socket error: {}", e);
             }

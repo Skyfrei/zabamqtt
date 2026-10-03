@@ -5,7 +5,7 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::time::Instant;
 
-pub struct Zabaqtt {
+pub struct Zabamqtt {
     identifiers: HashSet<u16>,
     header_factory: VariableHeaderFactory,
     client: Option<TcpStream>,
@@ -13,7 +13,7 @@ pub struct Zabaqtt {
     timer: Instant,
 }
 
-impl Zabaqtt {
+impl Zabamqtt {
     pub fn new() -> Self {
         Self {
             identifiers: HashSet::new(),
