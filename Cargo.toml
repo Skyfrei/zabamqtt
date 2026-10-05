@@ -2,5 +2,12 @@
 name = "zabamqtt"
 version = "0.1.0"
 edition = "2024"
+description = "A MQTT client fully implemented in rust with 0 dependencies"
+license = "MIT"
+repository = "https://github.com/Skyfrei/zabamqtt"
+readme = "readme.md"
+keywords = ["mqtt", "mqtt3.1", "mqtt-client"]
+categories = ["mqtt"]
 
 [dependencies]
+
